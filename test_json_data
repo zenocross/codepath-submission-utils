@@ -1,0 +1,577 @@
+{
+  "all_submissions": [
+    {
+      "comment_id": 3344360717,
+      "comment_preview": "https://github.com/user-attachments/assets/8a3c0c8a-afc4-48c5-b3bb-60fa45b2f105",
+      "is_codepath_submission": true,
+      "is_valid": true,
+      "issue_display": "GS #1",
+      "issue_number": 1,
+      "issue_state": "open",
+      "issue_title": "Getting Started #1 - Start a chat",
+      "issue_type": "getting_started",
+      "owner_name": "codepath",
+      "repo_name": "chatbox",
+      "repo_type": "codepath_repo",
+      "repository": "codepath/chatbox",
+      "source_repository": null,
+      "student": "jellyfishing2346",
+      "submission_date": "2025-09-28T22:45:28Z",
+      "submission_type": "COMMENT",
+      "validity_reasons": [
+        "Has attachment",
+        "Linked to GS issue #1"
+      ],
+      "validity_status": "VALID"
+    },
+    {
+      "addressed_issues": [],
+      "addressed_issues_classified": {
+        "ambiguous": [],
+        "getting_started": [],
+        "regular": [
+          {
+            "confidence": "low",
+            "inferred": true,
+            "number": 1,
+            "similarity_score": 0.07692307692307693,
+            "title": "Issue #1 - Add ability to remove profile picture",
+            "type": "regular"
+          },
+          {
+            "confidence": "low",
+            "inferred": true,
+            "number": 4,
+            "similarity_score": 0.06666666666666667,
+            "title": "Issue #5 - Add a way to hide or show all desktop icons",
+            "type": "regular"
+          },
+          {
+            "confidence": "low",
+            "inferred": true,
+            "number": 3,
+            "similarity_score": 0.0625,
+            "title": "Issue #3 - [FEATURE] Add multiple alert box types and customization options",
+            "type": "regular"
+          }
+        ]
+      },
+      "ambiguous_issue_refs": [],
+      "inferred_issue_matches": [
+        {
+          "confidence": "low",
+          "issue_number": 1,
+          "issue_title": "Issue #1 - Add ability to remove profile picture",
+          "issue_type": "regular",
+          "similarity_score": 0.07692307692307693
+        },
+        {
+          "confidence": "low",
+          "issue_number": 4,
+          "issue_title": "Issue #5 - Add a way to hide or show all desktop icons",
+          "issue_type": "regular",
+          "similarity_score": 0.06666666666666667
+        },
+        {
+          "confidence": "low",
+          "issue_number": 3,
+          "issue_title": "Issue #3 - [FEATURE] Add multiple alert box types and customization options",
+          "issue_type": "regular",
+          "similarity_score": 0.0625
+        },
+        {
+          "confidence": "low",
+          "issue_number": 5,
+          "issue_title": "Issue #2 - [BUG] Sidebar header text unreadable with certain theme lightness settings",
+          "issue_type": "regular",
+          "similarity_score": 0.058823529411764705
+        }
+      ],
+      "is_codepath_submission": false,
+      "is_valid": false,
+      "issue_refs_in_desc": [],
+      "issue_refs_in_title": [],
+      "owner_name": "jellyfishing2346",
+      "pr_number": 8,
+      "pr_state": "merged",
+      "pr_title": "added text file recording",
+      "repo_name": "puter",
+      "repo_type": "student_fork",
+      "repository": "jellyfishing2346/puter",
+      "source_repository": "codepath/puter",
+      "student": "jellyfishing2346",
+      "submission_date": "2025-10-13T14:10:42",
+      "submission_type": "PULL_REQUEST",
+      "validity_reasons": [
+        "Missing attachment",
+        "No issue references found"
+      ],
+      "validity_status": "INVALID"
+    },
+    {
+      "addressed_issues": [],
+      "addressed_issues_classified": {
+        "ambiguous": [],
+        "getting_started": [],
+        "regular": [
+          {
+            "confidence": "low",
+            "inferred": true,
+            "number": 1,
+            "similarity_score": 0.125,
+            "title": "Issue #1 - Add ability to remove profile picture",
+            "type": "regular"
+          },
+          {
+            "confidence": "low",
+            "inferred": true,
+            "number": 4,
+            "similarity_score": 0.1,
+            "title": "Issue #5 - Add a way to hide or show all desktop icons",
+            "type": "regular"
+          },
+          {
+            "confidence": "low",
+            "inferred": true,
+            "number": 3,
+            "similarity_score": 0.09090909090909091,
+            "title": "Issue #3 - [FEATURE] Add multiple alert box types and customization options",
+            "type": "regular"
+          }
+        ]
+      },
+      "ambiguous_issue_refs": [],
+      "inferred_issue_matches": [
+        {
+          "confidence": "low",
+          "issue_number": 1,
+          "issue_title": "Issue #1 - Add ability to remove profile picture",
+          "issue_type": "regular",
+          "similarity_score": 0.125
+        },
+        {
+          "confidence": "low",
+          "issue_number": 4,
+          "issue_title": "Issue #5 - Add a way to hide or show all desktop icons",
+          "issue_type": "regular",
+          "similarity_score": 0.1
+        },
+        {
+          "confidence": "low",
+          "issue_number": 3,
+          "issue_title": "Issue #3 - [FEATURE] Add multiple alert box types and customization options",
+          "issue_type": "regular",
+          "similarity_score": 0.09090909090909091
+        }
+      ],
+      "is_codepath_submission": false,
+      "is_valid": false,
+      "issue_refs_in_desc": [
+        6
+      ],
+      "issue_refs_in_title": [],
+      "owner_name": "jellyfishing2346",
+      "pr_number": 9,
+      "pr_state": "merged",
+      "pr_title": "Added tutorial video",
+      "repo_name": "puter",
+      "repo_type": "student_fork",
+      "repository": "jellyfishing2346/puter",
+      "source_repository": "codepath/puter",
+      "student": "jellyfishing2346",
+      "submission_date": "2025-10-13T14:21:47",
+      "submission_type": "PULL_REQUEST",
+      "validity_reasons": [
+        "Missing attachment",
+        "References issue(s) [6] in description"
+      ],
+      "validity_status": "INVALID"
+    },
+    {
+      "addressed_issues": [
+        "GS #7 - Getting Started #1 - Explore Puter by using it as a Personal Cloud Storage System"
+      ],
+      "addressed_issues_classified": {
+        "ambiguous": [],
+        "getting_started": [
+          {
+            "number": 7,
+            "title": "Getting Started #1 - Explore Puter by using it as a Personal Cloud Storage System",
+            "type": "getting_started"
+          }
+        ],
+        "regular": []
+      },
+      "ambiguous_issue_refs": [],
+      "inferred_issue_matches": null,
+      "is_codepath_submission": false,
+      "is_valid": false,
+      "issue_refs_in_desc": [
+        7
+      ],
+      "issue_refs_in_title": [],
+      "owner_name": "jellyfishing2346",
+      "pr_number": 10,
+      "pr_state": "merged",
+      "pr_title": "test",
+      "repo_name": "puter",
+      "repo_type": "student_fork",
+      "repository": "jellyfishing2346/puter",
+      "source_repository": "codepath/puter",
+      "student": "jellyfishing2346",
+      "submission_date": "2025-10-13T14:30:41",
+      "submission_type": "PULL_REQUEST",
+      "validity_reasons": [
+        "Missing attachment",
+        "Linked to 1 issue(s) in database",
+        "References issue(s) [7] in description"
+      ],
+      "validity_status": "INVALID"
+    },
+    {
+      "addressed_issues": [
+        "#4"
+      ],
+      "addressed_issues_classified": {
+        "ambiguous": [],
+        "getting_started": [],
+        "regular": [
+          {
+            "number": 4,
+            "title": "Issue #4",
+            "type": "regular"
+          }
+        ]
+      },
+      "ambiguous_issue_refs": [],
+      "inferred_issue_matches": null,
+      "is_codepath_submission": true,
+      "is_valid": false,
+      "issue_refs_in_desc": [
+        4
+      ],
+      "issue_refs_in_title": [],
+      "owner_name": "codepath",
+      "pr_number": 15,
+      "pr_state": "open",
+      "pr_title": "added text file recording",
+      "repo_name": "puter",
+      "repo_type": "codepath_repo",
+      "repository": "codepath/puter",
+      "source_repository": null,
+      "student": "jellyfishing2346",
+      "submission_date": "2025-10-13T14:07:28Z",
+      "submission_type": "PULL_REQUEST",
+      "validity_reasons": [
+        "Missing attachment",
+        "References issue(s) [4] in description"
+      ],
+      "validity_status": "INVALID"
+    }
+  ],
+  "generated_at": "2025-10-17T18:49:25.137533",
+  "statistics": {
+    "codepath_submissions": 2,
+    "comment_submissions": 1,
+    "fork_submissions": 3,
+    "invalid_submissions": 4,
+    "pr_submissions": 4,
+    "repositories": [
+      "codepath/puter",
+      "codepath/chatbox",
+      "jellyfishing2346/puter"
+    ],
+    "total_submissions": 5,
+    "valid_submissions": 1
+  },
+  "student": "jellyfishing2346",
+  "submissions_by_repository": [
+    {
+      "is_codepath_submission": true,
+      "repository": "codepath/chatbox",
+      "submissions": [
+        {
+          "comment_id": 3344360717,
+          "comment_preview": "https://github.com/user-attachments/assets/8a3c0c8a-afc4-48c5-b3bb-60fa45b2f105",
+          "is_codepath_submission": true,
+          "is_valid": true,
+          "issue_display": "GS #1",
+          "issue_number": 1,
+          "issue_state": "open",
+          "issue_title": "Getting Started #1 - Start a chat",
+          "issue_type": "getting_started",
+          "owner_name": "codepath",
+          "repo_name": "chatbox",
+          "repo_type": "codepath_repo",
+          "repository": "codepath/chatbox",
+          "source_repository": null,
+          "student": "jellyfishing2346",
+          "submission_date": "2025-09-28T22:45:28Z",
+          "submission_type": "COMMENT",
+          "validity_reasons": [
+            "Has attachment",
+            "Linked to GS issue #1"
+          ],
+          "validity_status": "VALID"
+        }
+      ]
+    },
+    {
+      "is_codepath_submission": false,
+      "repository": "jellyfishing2346/puter",
+      "submissions": [
+        {
+          "addressed_issues": [],
+          "addressed_issues_classified": {
+            "ambiguous": [],
+            "getting_started": [],
+            "regular": [
+              {
+                "confidence": "low",
+                "inferred": true,
+                "number": 1,
+                "similarity_score": 0.07692307692307693,
+                "title": "Issue #1 - Add ability to remove profile picture",
+                "type": "regular"
+              },
+              {
+                "confidence": "low",
+                "inferred": true,
+                "number": 4,
+                "similarity_score": 0.06666666666666667,
+                "title": "Issue #5 - Add a way to hide or show all desktop icons",
+                "type": "regular"
+              },
+              {
+                "confidence": "low",
+                "inferred": true,
+                "number": 3,
+                "similarity_score": 0.0625,
+                "title": "Issue #3 - [FEATURE] Add multiple alert box types and customization options",
+                "type": "regular"
+              }
+            ]
+          },
+          "ambiguous_issue_refs": [],
+          "inferred_issue_matches": [
+            {
+              "confidence": "low",
+              "issue_number": 1,
+              "issue_title": "Issue #1 - Add ability to remove profile picture",
+              "issue_type": "regular",
+              "similarity_score": 0.07692307692307693
+            },
+            {
+              "confidence": "low",
+              "issue_number": 4,
+              "issue_title": "Issue #5 - Add a way to hide or show all desktop icons",
+              "issue_type": "regular",
+              "similarity_score": 0.06666666666666667
+            },
+            {
+              "confidence": "low",
+              "issue_number": 3,
+              "issue_title": "Issue #3 - [FEATURE] Add multiple alert box types and customization options",
+              "issue_type": "regular",
+              "similarity_score": 0.0625
+            },
+            {
+              "confidence": "low",
+              "issue_number": 5,
+              "issue_title": "Issue #2 - [BUG] Sidebar header text unreadable with certain theme lightness settings",
+              "issue_type": "regular",
+              "similarity_score": 0.058823529411764705
+            }
+          ],
+          "is_codepath_submission": false,
+          "is_valid": false,
+          "issue_refs_in_desc": [],
+          "issue_refs_in_title": [],
+          "owner_name": "jellyfishing2346",
+          "pr_number": 8,
+          "pr_state": "merged",
+          "pr_title": "added text file recording",
+          "repo_name": "puter",
+          "repo_type": "student_fork",
+          "repository": "jellyfishing2346/puter",
+          "source_repository": "codepath/puter",
+          "student": "jellyfishing2346",
+          "submission_date": "2025-10-13T14:10:42",
+          "submission_type": "PULL_REQUEST",
+          "validity_reasons": [
+            "Missing attachment",
+            "No issue references found"
+          ],
+          "validity_status": "INVALID"
+        },
+        {
+          "addressed_issues": [],
+          "addressed_issues_classified": {
+            "ambiguous": [],
+            "getting_started": [],
+            "regular": [
+              {
+                "confidence": "low",
+                "inferred": true,
+                "number": 1,
+                "similarity_score": 0.125,
+                "title": "Issue #1 - Add ability to remove profile picture",
+                "type": "regular"
+              },
+              {
+                "confidence": "low",
+                "inferred": true,
+                "number": 4,
+                "similarity_score": 0.1,
+                "title": "Issue #5 - Add a way to hide or show all desktop icons",
+                "type": "regular"
+              },
+              {
+                "confidence": "low",
+                "inferred": true,
+                "number": 3,
+                "similarity_score": 0.09090909090909091,
+                "title": "Issue #3 - [FEATURE] Add multiple alert box types and customization options",
+                "type": "regular"
+              }
+            ]
+          },
+          "ambiguous_issue_refs": [],
+          "inferred_issue_matches": [
+            {
+              "confidence": "low",
+              "issue_number": 1,
+              "issue_title": "Issue #1 - Add ability to remove profile picture",
+              "issue_type": "regular",
+              "similarity_score": 0.125
+            },
+            {
+              "confidence": "low",
+              "issue_number": 4,
+              "issue_title": "Issue #5 - Add a way to hide or show all desktop icons",
+              "issue_type": "regular",
+              "similarity_score": 0.1
+            },
+            {
+              "confidence": "low",
+              "issue_number": 3,
+              "issue_title": "Issue #3 - [FEATURE] Add multiple alert box types and customization options",
+              "issue_type": "regular",
+              "similarity_score": 0.09090909090909091
+            }
+          ],
+          "is_codepath_submission": false,
+          "is_valid": false,
+          "issue_refs_in_desc": [
+            6
+          ],
+          "issue_refs_in_title": [],
+          "owner_name": "jellyfishing2346",
+          "pr_number": 9,
+          "pr_state": "merged",
+          "pr_title": "Added tutorial video",
+          "repo_name": "puter",
+          "repo_type": "student_fork",
+          "repository": "jellyfishing2346/puter",
+          "source_repository": "codepath/puter",
+          "student": "jellyfishing2346",
+          "submission_date": "2025-10-13T14:21:47",
+          "submission_type": "PULL_REQUEST",
+          "validity_reasons": [
+            "Missing attachment",
+            "References issue(s) [6] in description"
+          ],
+          "validity_status": "INVALID"
+        },
+        {
+          "addressed_issues": [
+            "GS #7 - Getting Started #1 - Explore Puter by using it as a Personal Cloud Storage System"
+          ],
+          "addressed_issues_classified": {
+            "ambiguous": [],
+            "getting_started": [
+              {
+                "number": 7,
+                "title": "Getting Started #1 - Explore Puter by using it as a Personal Cloud Storage System",
+                "type": "getting_started"
+              }
+            ],
+            "regular": []
+          },
+          "ambiguous_issue_refs": [],
+          "inferred_issue_matches": null,
+          "is_codepath_submission": false,
+          "is_valid": false,
+          "issue_refs_in_desc": [
+            7
+          ],
+          "issue_refs_in_title": [],
+          "owner_name": "jellyfishing2346",
+          "pr_number": 10,
+          "pr_state": "merged",
+          "pr_title": "test",
+          "repo_name": "puter",
+          "repo_type": "student_fork",
+          "repository": "jellyfishing2346/puter",
+          "source_repository": "codepath/puter",
+          "student": "jellyfishing2346",
+          "submission_date": "2025-10-13T14:30:41",
+          "submission_type": "PULL_REQUEST",
+          "validity_reasons": [
+            "Missing attachment",
+            "Linked to 1 issue(s) in database",
+            "References issue(s) [7] in description"
+          ],
+          "validity_status": "INVALID"
+        }
+      ]
+    },
+    {
+      "is_codepath_submission": true,
+      "repository": "codepath/puter",
+      "submissions": [
+        {
+          "addressed_issues": [
+            "#4"
+          ],
+          "addressed_issues_classified": {
+            "ambiguous": [],
+            "getting_started": [],
+            "regular": [
+              {
+                "number": 4,
+                "title": "Issue #4",
+                "type": "regular"
+              }
+            ]
+          },
+          "ambiguous_issue_refs": [],
+          "inferred_issue_matches": null,
+          "is_codepath_submission": true,
+          "is_valid": false,
+          "issue_refs_in_desc": [
+            4
+          ],
+          "issue_refs_in_title": [],
+          "owner_name": "codepath",
+          "pr_number": 15,
+          "pr_state": "open",
+          "pr_title": "added text file recording",
+          "repo_name": "puter",
+          "repo_type": "codepath_repo",
+          "repository": "codepath/puter",
+          "source_repository": null,
+          "student": "jellyfishing2346",
+          "submission_date": "2025-10-13T14:07:28Z",
+          "submission_type": "PULL_REQUEST",
+          "validity_reasons": [
+            "Missing attachment",
+            "References issue(s) [4] in description"
+          ],
+          "validity_status": "INVALID"
+        }
+      ]
+    }
+  ],
+  "success": true
+}

@@ -92,32 +92,51 @@ def get_submission_title(submission: Dict[str, Any]) -> str:
 def format_submissions(data: Dict[str, Any]):
     """Format and print submissions grouped by project and student"""
     
+    # Debug: Print the keys in the response
+    print(f"🔍 DEBUG: Response keys: {list(data.keys())}")
+    
     # Handle different response formats
-    # All students endpoint: { "success": true, "report": { "submissions": [...] } }
-    # Single student endpoint: { "success": true, "all_submissions": [...] }
-    if 'report' in data:
-        # All students endpoint
-        submissions = data['report'].get('submissions', [])
+    submissions = None
+    
+    if 'report' in data and 'submissions' in data['report']:
+        # All students endpoint: { "success": true, "report": { "submissions": [...] } }
+        submissions = data['report']['submissions']
+        print(f"📋 Found {len(submissions)} submissions in report.submissions")
     elif 'all_submissions' in data:
-        # Single student endpoint
+        # Single student endpoint: { "success": true, "all_submissions": [...] }
         submissions = data['all_submissions']
+        print(f"📋 Found {len(submissions)} submissions in all_submissions")
     elif 'submissions' in data:
         # Direct submissions key
         submissions = data['submissions']
+        print(f"📋 Found {len(submissions)} submissions in submissions")
     else:
-        print("❌ No submissions found in response")
+        print(f"❌ No submissions found in response. Available keys: {list(data.keys())}")
+        print(f"📄 Full response structure:")
+        import json
+        print(json.dumps(data, indent=2)[:500])  # Print first 500 chars
         return
     
     if not submissions:
-        print("ℹ️  No submissions found")
+        print("ℹ️  No submissions found (submissions list is empty)")
         return
+    
+    print()  # Add blank line after debug info
     
     # Group submissions by project (base repo name) and then by student
     # project_name -> student_name -> [submissions]
     by_project = defaultdict(lambda: defaultdict(list))
     
     for submission in submissions:
-        repo_name = submission.get('repo_name', 'unknown')
+        # Use source_repository for forks, otherwise use repository
+        repo_full = submission.get('source_repository') or submission.get('repository', 'unknown')
+        
+        # Extract just the repo name (after the /)
+        if '/' in repo_full:
+            repo_name = repo_full.split('/')[-1]
+        else:
+            repo_name = submission.get('repo_name', 'unknown')
+        
         student = submission.get('student', 'unknown')
         by_project[repo_name][student].append(submission)
     
@@ -137,7 +156,7 @@ def format_submissions(data: Dict[str, Any]):
     # Sort projects alphabetically
     for project_name in sorted(by_project.keys()):
         print("=" * 80)
-        print(f"Project: {project_name}")
+        print(f"📦 Project: {project_name}")
         print("=" * 80)
         
         students = by_project[project_name]
@@ -156,22 +175,66 @@ def format_submissions(data: Dict[str, Any]):
                 location = get_submission_location(submission)
                 url = get_submission_url(submission)
                 status = "✅ VALID" if submission.get('is_valid') else "❌ INVALID"
+                date = submission.get('submission_date', 'N/A')
                 
                 print(f"{idx}. {title}")
+                print(f"   Repository: {submission.get('repository', 'N/A')}")
                 print(f"   Location: {location}")
                 print(f"   Status: {status}")
+                print(f"   Date: {date}")
                 print(f"   URL: {url}")
                 
                 # Show validity reasons if invalid
                 if not submission.get('is_valid'):
                     reasons = submission.get('validity_reasons', [])
                     if reasons:
-                        print(f"   Reasons: {', '.join(reasons)}")
+                        print(f"   ⚠️  Reasons: {', '.join(reasons)}")
+                
+                # Show addressed issues if available
+                addressed = submission.get('addressed_issues', [])
+                if addressed:
+                    print(f"   🎯 Addresses: {', '.join(addressed)}")
+                
                 print()
         
         print()
     
     print("=" * 80)
+
+
+def show_usage_guide():
+    """Show helpful usage guide when base URL is not provided"""
+    print("=" * 80)
+    print("📚 Student Submissions Formatter - Usage Guide")
+    print("=" * 80)
+    print()
+    print("This script fetches and formats student submissions from the API.")
+    print()
+    print("⚠️  Required: You must specify --base-url")
+    print()
+    print("Common Examples:")
+    print("-" * 80)
+    print()
+    print("1. Fetch a specific student from production:")
+    print("   python format_submissions.py \\")
+    print("       --base-url https://www.zenocross.com \\")
+    print("       --student jellyfishing2346 \\")
+    print("       --master-repo-owner codepath")
+    print()
+    print("2. Fetch all students from localhost:")
+    print("   python format_submissions.py \\")
+    print("       --base-url http://localhost:3000 \\")
+    print("       --master-repo-owner codepath")
+    print()
+    print("3. Fetch from a different master repo owner:")
+    print("   python format_submissions.py \\")
+    print("       --base-url https://www.zenocross.com \\")
+    print("       --master-repo-owner zenocross")
+    print()
+    print("=" * 80)
+    print()
+    print("For more help, use: python format_submissions.py --help")
+    print()
 
 
 def main():
@@ -180,21 +243,21 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Fetch all students for zenocross master repo
-  python format_submissions.py --master-repo-owner zenocross
+  # Fetch specific student from production
+  python format_submissions.py --base-url https://www.zenocross.com --student jellyfishing2346 --master-repo-owner codepath
   
-  # Fetch specific student
-  python format_submissions.py --student zenoxcross --master-repo-owner zenocross
+  # Fetch all students from localhost
+  python format_submissions.py --base-url http://localhost:3000 --master-repo-owner codepath
   
-  # Use custom API URL
-  python format_submissions.py --base-url http://example.com:3000 --master-repo-owner codepath
-        """
+  # Fetch from different master repo owner
+  python format_submissions.py --base-url https://www.zenocross.com --master-repo-owner zenocross
+        """,
+        add_help=True
     )
     
     parser.add_argument(
         '--base-url',
-        default='http://localhost:3000',
-        help='Base URL of the API (default: http://localhost:3000)'
+        help='Base URL of the API (REQUIRED - e.g., https://www.zenocross.com or http://localhost:3000)'
     )
     
     parser.add_argument(
@@ -204,11 +267,17 @@ Examples:
     
     parser.add_argument(
         '--master-repo-owner',
-        required=True,
-        help='Master repository owner (required)'
+        default='codepath',
+        help='Master repository owner (default: codepath)'
     )
     
+    # Parse arguments
     args = parser.parse_args()
+    
+    # Check if base URL is provided
+    if not args.base_url:
+        show_usage_guide()
+        sys.exit(1)
     
     # Fetch submissions from API
     data = fetch_submissions(
@@ -228,4 +297,3 @@ Examples:
 
 if __name__ == '__main__':
     main()
-

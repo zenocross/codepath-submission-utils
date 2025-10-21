@@ -1,0 +1,38 @@
+[
+  {
+    "id": 12345678,
+    "name": "gitlab",
+    "path": "gitlab",
+    "path_with_namespace": "zenocross/gitlab",
+    "created_at": "2024-01-15T10:30:00.000Z",
+    "owner": {
+      "id": 987654,
+      "username": "zenocross",
+      "name": "Zeno Cross",
+      "avatar_url": "https://gitlab.com/uploads/-/system/user/avatar/987654/avatar.png"
+    },
+    "forked_from_project": {
+      "id": 11111111,
+      "path_with_namespace": "codepath-org/gitlab"
+    },
+    "web_url": "https://gitlab.com/zenocross/gitlab"
+  },
+  {
+    "id": 12345679,
+    "name": "gitlab",
+    "path": "gitlab",
+    "path_with_namespace": "alice-dev/gitlab",
+    "created_at": "2024-01-20T14:22:00.000Z",
+    "owner": {
+      "id": 887766,
+      "username": "alice-dev",
+      "name": "Alice Developer",
+      "avatar_url": "https://gitlab.com/uploads/-/system/user/avatar/887766/avatar.png"
+    },
+    "forked_from_project": {
+      "id": 11111111,
+      "path_with_namespace": "codepath-org/gitlab"
+    },
+    "web_url": "https://gitlab.com/alice-dev/gitlab"
+  }
+]

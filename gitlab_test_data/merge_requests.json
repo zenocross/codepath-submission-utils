@@ -1,0 +1,23 @@
+[
+    {
+      "id": 888111,
+      "iid": 1,
+      "project_id": 12345678,
+      "title": "Add new feature implementation",
+      "description": "This MR implements the new feature",
+      "state": "merged",
+      "created_at": "2024-02-04T11:00:00.000Z",
+      "updated_at": "2024-02-05T16:45:00.000Z",
+      "merged_at": "2024-02-05T16:45:00.000Z",
+      "author": {
+        "id": 987654,
+        "username": "zenocross",
+        "name": "Zeno Cross"
+      },
+      "source_project_id": 12345678,
+      "target_project_id": 12345678,
+      "source_branch": "feature-branch",
+      "target_branch": "main",
+      "web_url": "https://gitlab.com/zenocross/gitlab/-/merge_requests/1"
+    }
+  ]

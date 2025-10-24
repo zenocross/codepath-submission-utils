@@ -9,6 +9,7 @@ import sys
 import requests
 import argparse
 import re
+import os
 from collections import defaultdict
 from typing import Dict, List, Any, Optional
 from urllib.parse import quote_plus
@@ -58,7 +59,19 @@ class GitLabAPI:
                 page += 1
                 
             except requests.exceptions.RequestException as e:
-                print(f"❌ Error fetching {url}: {e}")
+                if hasattr(e, 'response') and e.response is not None:
+                    status_code = e.response.status_code
+                    if status_code == 401:
+                        print(f"❌ Unauthorized (401) - Check your GitLab token permissions for: {url}")
+                        print(f"   Make sure your token has 'read_api' scope and access to the project")
+                    elif status_code == 403:
+                        print(f"❌ Forbidden (403) - Insufficient permissions for: {url}")
+                    elif status_code == 404:
+                        print(f"❌ Not Found (404) - Resource not found: {url}")
+                    else:
+                        print(f"❌ HTTP {status_code} Error fetching {url}: {e}")
+                else:
+                    print(f"❌ Error fetching {url}: {e}")
                 break
         
         return all_results
@@ -87,12 +100,42 @@ class GitLabAPI:
     
     def get_issue_notes(self, project_id: int, issue_iid: int) -> List[Dict]:
         """Get all notes (comments) for an issue"""
-        return self._get(f"projects/{project_id}/issues/{issue_iid}/notes")
+        try:
+            return self._get(f"projects/{project_id}/issues/{issue_iid}/notes")
+        except Exception as e:
+            print(f"   ⚠️  Could not fetch notes for issue {issue_iid}: {e}")
+            return []
     
     def get_merge_requests(self, project_id: int) -> List[Dict]:
         """Get merge requests within the same project (self-merges)"""
         params = {'target_project_id': project_id}
         return self._get(f"projects/{project_id}/merge_requests", params)
+    
+    def get_merge_requests_to_target(self, source_project_id: int, target_project_id: int) -> List[Dict]:
+        """Get merge requests from source project to target project"""
+        params = {'target_project_id': target_project_id}
+        return self._get(f"projects/{source_project_id}/merge_requests", params)
+    
+    def get_merge_requests_from_source(self, target_project_id: int, source_project_id: int) -> List[Dict]:
+        """Get merge requests in target project that come from source project"""
+        params = {'source_project_id': source_project_id}
+        return self._get(f"projects/{target_project_id}/merge_requests", params)
+    
+    def test_token_permissions(self) -> bool:
+        """Test if the token has the necessary permissions"""
+        try:
+            # Try to get current user info to test token validity
+            response = self.session.get(f"{self.api_base}/user", timeout=10)
+            if response.status_code == 200:
+                user_info = response.json()
+                print(f"   ✅ Token is valid for user: {user_info.get('username', 'unknown')}")
+                return True
+            else:
+                print(f"   ❌ Token validation failed: HTTP {response.status_code}")
+                return False
+        except Exception as e:
+            print(f"   ❌ Token validation error: {e}")
+            return False
 
 
 def has_media_attachments(text: str) -> tuple[bool, List[str]]:
@@ -251,6 +294,13 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
     # Initialize API
     api = GitLabAPI(base_url=gitlab_url, token=token)
     
+    # Test token permissions if token is provided
+    if token:
+        print(f"🔑 Testing GitLab token permissions...")
+        if not api.test_token_permissions():
+            print(f"⚠️  Token validation failed, but continuing anyway...")
+        print()
+    
     # Verify master project exists
     master_project_data = api.get_project_by_path(master_project)
     if not master_project_data:
@@ -274,11 +324,20 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
         }
     
     print(f"   Found {len(forks)} forks")
+    
+    # Debug: Print first fork structure to understand the API response (only if needed)
+    if forks and len(forks) > 0:
+        print(f"   Debug: First fork structure keys: {list(forks[0].keys())}")
+        if 'owner' in forks[0]:
+            print(f"   Debug: Owner structure: {forks[0]['owner']}")
+        else:
+            print(f"   Debug: No 'owner' field found in fork response")
+    
     print()
     
     # Filter for specific student if requested
     if student:
-        forks = [f for f in forks if f['owner']['username'].lower() == student.lower()]
+        forks = [f for f in forks if f.get('owner', {}).get('username', '').lower() == student.lower()]
         if not forks:
             print(f"⚠️  No fork found for student {student}")
             return {
@@ -290,11 +349,38 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
     all_submissions = []
     
     for idx, fork in enumerate(forks, 1):
-        fork_owner = fork['owner']['username']
-        fork_path = fork['path_with_namespace']
-        fork_id = fork['id']
+        # Handle cases where owner field might not be present
+        fork_owner = fork.get('owner', {}).get('username', 'unknown')
+        fork_path = fork.get('path_with_namespace', 'unknown')
+        fork_id = fork.get('id')
         
-        print(f"[{idx}/{len(forks)}] Processing fork: {fork_path}")
+        # Try alternative ways to get the owner
+        if fork_owner == 'unknown':
+            # Try namespace.name or creator.username
+            if 'namespace' in fork and 'name' in fork['namespace']:
+                fork_owner = fork['namespace']['name']
+            elif 'creator' in fork and 'username' in fork['creator']:
+                fork_owner = fork['creator']['username']
+            elif 'path_with_namespace' in fork:
+                # Extract username from path (e.g., "username/project" -> "username")
+                path_parts = fork['path_with_namespace'].split('/')
+                if len(path_parts) > 1:
+                    fork_owner = path_parts[0]
+        
+        if not fork_id:
+            print(f"   ⚠️  Skipping fork {fork_path} - no ID found")
+            continue
+        
+        print(f"[{idx}/{len(forks)}] Processing fork: {fork_path} (owner: {fork_owner})")
+        
+        # Debug: Print fork structure to understand upstream relationship
+        print(f"   🔍 Debug: Fork structure keys: {list(fork.keys())}")
+        if 'forked_from_project' in fork:
+            print(f"   🔍 Debug: Forked from: {fork['forked_from_project']}")
+        if 'path' in fork:
+            print(f"   🔍 Debug: Fork path: {fork['path']}")
+        if 'namespace' in fork:
+            print(f"   🔍 Debug: Fork namespace: {fork['namespace']}")
         
         # Check issues and comments for media attachments
         issues = api.get_project_issues(fork_id)
@@ -325,7 +411,13 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
                 })
             
             # Check issue comments
+            print(f"   📝 Fetching comments for issue #{issue['iid']}...")
             notes = api.get_issue_notes(fork_id, issue['iid'])
+            
+            if not notes:
+                print(f"   ⚠️  No comments found or accessible for issue #{issue['iid']}")
+            else:
+                print(f"   📝 Found {len(notes)} comments")
             
             for note in notes:
                 if note.get('system'):  # Skip system notes
@@ -353,13 +445,37 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
                         'addressed_issues': []
                     })
         
-        # Check for merge requests within the fork itself
+        # Get all merge requests from the fork
         merge_requests = api.get_merge_requests(fork_id)
-        self_mrs = [mr for mr in merge_requests 
-                    if mr['source_project_id'] == mr['target_project_id']]
+        master_project_id = master_project_data.get('id')
+        
+        # Debug: Print merge request details to understand the structure
+        print(f"   🔍 Debug: Analyzing {len(merge_requests)} merge requests...")
+        for mr in merge_requests:
+            print(f"      - MR !{mr['iid']}: {mr['title']}")
+            print(f"        Source: {mr.get('source_project_id')} -> Target: {mr.get('target_project_id')}")
+            print(f"        Source branch: {mr.get('source_branch')} -> Target branch: {mr.get('target_branch')}")
+            print(f"        State: {mr.get('state')}")
+        
+        # Separate merge requests by target
+        self_mrs = []
+        master_mrs = []
+        
+        for mr in merge_requests:
+            source_id = mr.get('source_project_id')
+            target_id = mr.get('target_project_id')
+            
+            if source_id == target_id:
+                # Self-merge within the fork
+                self_mrs.append(mr)
+            elif target_id == master_project_id:
+                # Merge request to master project
+                master_mrs.append(mr)
         
         print(f"   🔀 Found {len(self_mrs)} self-merge requests")
+        print(f"   🔀 Found {len(master_mrs)} merge requests to master project")
         
+        # Process self-merge requests
         for mr in self_mrs:
             all_submissions.append({
                 'student': fork_owner,
@@ -377,6 +493,51 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
                 'is_codepath_submission': False,
                 'addressed_issues': []
             })
+        
+        # Process merge requests to master project
+        for mr in master_mrs:
+            print(f"      - MR !{mr['iid']}: {mr['title']} (state: {mr.get('state', 'unknown')})")
+            all_submissions.append({
+                'student': fork_owner,
+                'repository': master_project,  # Use master project path instead of fork path
+                'repo_name': repo_name,
+                'owner_name': fork_owner,
+                'source_repository': fork_path,  # Keep source as the fork
+                'submission_type': 'PULL_REQUEST',
+                'submission_date': mr['created_at'],
+                'pr_number': mr['iid'],
+                'pr_title': mr['title'],
+                'is_valid': True,
+                'validity_reasons': [],
+                'repo_type': 'codepath_repo',  # This is a submission to the master repo
+                'is_codepath_submission': True,  # This is a submission to the master repo
+                'addressed_issues': []
+            })
+        
+        # Also check for merge requests in the master repository that come from this fork
+        if master_project_id:
+            print(f"   🔍 Checking for merge requests in master repository from this fork...")
+            master_repo_mrs = api.get_merge_requests_from_source(master_project_id, fork_id)
+            print(f"   🔀 Found {len(master_repo_mrs)} merge requests in master repo from this fork")
+            
+            for mr in master_repo_mrs:
+                print(f"      - MR !{mr['iid']}: {mr['title']} (state: {mr.get('state', 'unknown')})")
+                all_submissions.append({
+                    'student': fork_owner,
+                    'repository': master_project,  # Use master project path instead of fork path
+                    'repo_name': repo_name,
+                    'owner_name': fork_owner,
+                    'source_repository': fork_path,  # Keep source as the fork
+                    'submission_type': 'PULL_REQUEST',
+                    'submission_date': mr['created_at'],
+                    'pr_number': mr['iid'],
+                    'pr_title': mr['title'],
+                    'is_valid': True,
+                    'validity_reasons': [],
+                    'repo_type': 'codepath_repo',  # This is a submission to the master repo
+                    'is_codepath_submission': True,  # This is a submission to the master repo
+                    'addressed_issues': []
+                })
         
         print()
     
@@ -578,41 +739,35 @@ def show_usage_guide():
     print("  • Individual submission details with dates")
     print()
     print("⚠️  Required: You must specify --master-project")
-    print("💡 Recommended: Provide --token for higher rate limits")
+    print("💡 Recommended: Set GITLAB_TOKEN environment variable or use --token for higher rate limits")
     print()
     print("Common Examples:")
     print("-" * 80)
     print()
-    print("1. Fetch all students from a project:")
-    print("   python gitlab_format_submissions.py \\")
-    print("       --master-project codepath-org/gitlab \\")
-    print("       --token glpat-xxxxxxxxxxxxxxxxxxxx")
+    print("1. Fetch all students from a project (using env var):")
+    print("   export GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxxxxxx")
+    print("   python gitlab_fetch.py --master-project codepath-org/gitlab")
     print()
-    print("2. Fetch a specific student:")
-    print("   python gitlab_format_submissions.py \\")
-    print("       --master-project codepath-org/gitlab \\")
-    print("       --student zenocross \\")
-    print("       --token glpat-xxxxxxxxxxxxxxxxxxxx")
+    print("2. Fetch a specific student (using env var):")
+    print("   export GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxxxxxx")
+    print("   python gitlab_fetch.py --master-project codepath-org/gitlab --student zenocross")
     print()
-    print("3. Use self-hosted GitLab:")
-    print("   python gitlab_format_submissions.py \\")
+    print("3. Use self-hosted GitLab (using env var):")
+    print("   export GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxxxxxx")
+    print("   python gitlab_fetch.py \\")
     print("       --gitlab-url https://gitlab.mycompany.com \\")
-    print("       --master-project myorg/myproject \\")
-    print("       --token glpat-xxxxxxxxxxxxxxxxxxxx")
+    print("       --master-project myorg/myproject")
     print()
-    print("4. Fetch submissions within a date range:")
-    print("   python gitlab_format_submissions.py \\")
+    print("4. Fetch submissions within a date range (using env var):")
+    print("   export GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxxxxxx")
+    print("   python gitlab_fetch.py \\")
     print("       --master-project codepath-org/gitlab \\")
     print("       --start-date 2023-12-01 \\")
-    print("       --end-date 2023-12-31 \\")
-    print("       --token glpat-xxxxxxxxxxxxxxxxxxxx")
+    print("       --end-date 2023-12-31")
     print()
-    print("5. Fetch submissions for a specific student within date range:")
-    print("   python gitlab_format_submissions.py \\")
+    print("5. Override env var with command line token:")
+    print("   python gitlab_fetch.py \\")
     print("       --master-project codepath-org/gitlab \\")
-    print("       --student zenocross \\")
-    print("       --start-date 2023-12-01 \\")
-    print("       --end-date 2023-12-31 \\")
     print("       --token glpat-xxxxxxxxxxxxxxxxxxxx")
     print()
     print("=" * 80)
@@ -620,7 +775,8 @@ def show_usage_guide():
     print("To get a GitLab token:")
     print("  1. Go to GitLab → Settings → Access Tokens")
     print("  2. Create token with 'read_api' scope")
-    print("  3. Copy the token and use with --token")
+    print("  3. Set environment variable: export GITLAB_TOKEN=your_token")
+    print("  4. Or use --token parameter to override")
     print()
 
 
@@ -630,20 +786,23 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Set environment variable first
+  export GITLAB_TOKEN=glpat-xxxxx
+  
   # Fetch all students
-  python gitlab_format_submissions.py --master-project codepath-org/gitlab --token glpat-xxxxx
+  python gitlab_fetch.py --master-project codepath-org/gitlab
   
   # Fetch specific student
-  python gitlab_format_submissions.py --master-project codepath-org/gitlab --student zenocross --token glpat-xxxxx
+  python gitlab_fetch.py --master-project codepath-org/gitlab --student zenocross
   
   # Use self-hosted GitLab
-  python gitlab_format_submissions.py --gitlab-url https://gitlab.company.com --master-project myorg/proj --token glpat-xxxxx
+  python gitlab_fetch.py --gitlab-url https://gitlab.company.com --master-project myorg/proj
   
   # Fetch submissions within date range
-  python gitlab_format_submissions.py --master-project codepath-org/gitlab --start-date 2023-12-01 --end-date 2023-12-31 --token glpat-xxxxx
+  python gitlab_fetch.py --master-project codepath-org/gitlab --start-date 2023-12-01 --end-date 2023-12-31
   
-  # Fetch specific student within date range
-  python gitlab_format_submissions.py --master-project codepath-org/gitlab --student zenocross --start-date 2023-12-01 --end-date 2023-12-31 --token glpat-xxxxx
+  # Override env var with command line token
+  python gitlab_fetch.py --master-project codepath-org/gitlab --token glpat-xxxxx
         """
     )
     
@@ -659,7 +818,7 @@ Examples:
     
     parser.add_argument(
         '--token',
-        help='GitLab Personal Access Token (recommended)'
+        help='GitLab Personal Access Token (optional, will use GITLAB_TOKEN env var if not provided)'
     )
     
     parser.add_argument(
@@ -685,12 +844,20 @@ Examples:
         show_usage_guide()
         sys.exit(1)
     
+    # Get token from command line or environment variable
+    token = args.token or os.getenv('GITLAB_TOKEN')
+    
+    if not token:
+        print("⚠️  No GitLab token provided. You may hit rate limits and have limited access.")
+        print("   Set GITLAB_TOKEN environment variable or use --token parameter")
+        print()
+    
     # Fetch submissions directly from GitLab API
     data = fetch_submissions(
         gitlab_url=args.gitlab_url,
         master_project=args.master_project,
         student=args.student,
-        token=args.token,
+        token=token,
         start_date=args.start_date,
         end_date=args.end_date
     )

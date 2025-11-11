@@ -50,7 +50,7 @@ def fetch_submissions(base_url: str, student: str = None, master_repo_owner: str
     print()
     
     try:
-        response = requests.get(url, params=params, timeout=60)
+        response = requests.get(url, params=params, timeout=1200)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:

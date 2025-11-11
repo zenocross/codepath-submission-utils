@@ -15,6 +15,14 @@ from typing import Dict, List, Any, Optional
 from urllib.parse import quote_plus
 from datetime import datetime
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # dotenv not available, continue without it
+    pass
+
 
 class GitLabAPI:
     """GitLab API client"""
@@ -23,6 +31,12 @@ class GitLabAPI:
         self.base_url = base_url.rstrip('/')
         self.api_base = f"{self.base_url}/api/v4"
         self.session = requests.Session()
+        
+        # Configure session for better performance
+        self.session.headers.update({
+            'User-Agent': 'GitLab-Submissions-Fetcher/1.0',
+            'Accept': 'application/json'
+        })
         
         if token:
             self.session.headers['PRIVATE-TOKEN'] = token
@@ -42,7 +56,7 @@ class GitLabAPI:
             params['page'] = page
             
             try:
-                response = self.session.get(url, params=params, timeout=30)
+                response = self.session.get(url, params=params)
                 response.raise_for_status()
                 
                 results = response.json()
@@ -82,7 +96,7 @@ class GitLabAPI:
         url = f"{self.api_base}/projects/{encoded_path}"
         
         try:
-            response = self.session.get(url, timeout=30)
+            response = self.session.get(url)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -125,7 +139,7 @@ class GitLabAPI:
         """Test if the token has the necessary permissions"""
         try:
             # Try to get current user info to test token validity
-            response = self.session.get(f"{self.api_base}/user", timeout=10)
+            response = self.session.get(f"{self.api_base}/user")
             if response.status_code == 200:
                 user_info = response.json()
                 print(f"   ✅ Token is valid for user: {user_info.get('username', 'unknown')}")
@@ -164,6 +178,102 @@ def has_media_attachments(text: str) -> tuple[bool, List[str]]:
     media_urls.extend(matches)
     
     return len(media_urls) > 0, media_urls
+
+
+def has_issue_references(text: str) -> tuple[bool, List[int]]:
+    """
+    Check if text contains issue references (#1, #2, etc.)
+    
+    Args:
+        text: Text content to check
+        
+    Returns:
+        Tuple of (has_references, list_of_issue_numbers)
+    """
+    if not text:
+        return False, []
+    
+    # Pattern to match issue references like #1, #2, etc.
+    issue_pattern = r'#(\d+)'
+    matches = re.findall(issue_pattern, text)
+    
+    if matches:
+        issue_numbers = [int(match) for match in matches]
+        return True, issue_numbers
+    
+    return False, []
+
+
+def validate_submission(submission: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Validate a submission based on criteria from main.py
+    
+    Args:
+        submission: Submission dictionary to validate
+        
+    Returns:
+        Updated submission dictionary with validation results
+    """
+    validity_reasons = []
+    is_valid = True
+    
+    submission_type = submission.get('submission_type', '')
+    
+    if submission_type == 'COMMENT':
+        # For comments, check for media attachments
+        comment_text = submission.get('comment_text', '') or submission.get('description', '')
+        has_media, media_urls = has_media_attachments(comment_text)
+        
+        if has_media:
+            validity_reasons.append("Has attachment")
+        else:
+            validity_reasons.append("Missing attachment")
+            is_valid = False
+        
+        # Check for issue references
+        has_refs, issue_nums = has_issue_references(comment_text)
+        if has_refs:
+            validity_reasons.append(f"References issue(s) {issue_nums} in description")
+        
+        # Check if linked to specific issue
+        issue_number = submission.get('issue_number')
+        if issue_number:
+            issue_type = submission.get('issue_type', 'regular')
+            if issue_type == 'getting_started':
+                validity_reasons.append(f"Linked to GS issue #{issue_number}")
+            else:
+                validity_reasons.append(f"Linked to issue #{issue_number}")
+    
+    elif submission_type == 'PULL_REQUEST':
+        # For pull requests, check for media attachments in description
+        pr_description = submission.get('pr_description', '') or submission.get('description', '')
+        has_media, media_urls = has_media_attachments(pr_description)
+        
+        if has_media:
+            validity_reasons.append("Has attachment")
+        else:
+            validity_reasons.append("Missing attachment")
+            is_valid = False
+        
+        # Check for issue references in PR description
+        has_refs, issue_nums = has_issue_references(pr_description)
+        if has_refs:
+            validity_reasons.append(f"References issue(s) {issue_nums} in description")
+        else:
+            validity_reasons.append("No issue references found")
+            is_valid = False
+        
+        # Check if PR addresses specific issues
+        addressed_issues = submission.get('addressed_issues', [])
+        if addressed_issues:
+            validity_reasons.append(f"Linked to {len(addressed_issues)} issue(s) in database")
+    
+    # Update submission with validation results
+    submission['is_valid'] = is_valid
+    submission['validity_reasons'] = validity_reasons
+    submission['validity_status'] = 'VALID' if is_valid else 'INVALID'
+    
+    return submission
 
 
 def filter_submissions_by_date(submissions: List[Dict[str, Any]], start_date: str = None, end_date: str = None) -> List[Dict[str, Any]]:
@@ -300,6 +410,42 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
         if not api.test_token_permissions():
             print(f"⚠️  Token validation failed, but continuing anyway...")
         print()
+        
+        # Test access to the master project specifically
+        print(f"🔑 Testing access to master project: {master_project}")
+        try:
+            test_response = api.session.get(f"{api.api_base}/projects/{quote_plus(master_project)}")
+            if test_response.status_code == 200:
+                print(f"   ✅ Can access master project")
+            else:
+                print(f"   ❌ Cannot access master project: HTTP {test_response.status_code}")
+                print(f"   Response: {test_response.text[:200]}")
+        except Exception as e:
+            print(f"   ❌ Error testing master project access: {e}")
+        
+        # Test access to issue comments specifically
+        print(f"🔑 Testing access to issue comments...")
+        try:
+            # Try to get issues first
+            issues_response = api.session.get(f"{api.api_base}/projects/{quote_plus(master_project)}/issues")
+            if issues_response.status_code == 200:
+                issues = issues_response.json()
+                if issues:
+                    # Try to get comments on the first issue
+                    first_issue_id = issues[0]['iid']
+                    comments_response = api.session.get(f"{api.api_base}/projects/{quote_plus(master_project)}/issues/{first_issue_id}/notes")
+                    if comments_response.status_code == 200:
+                        print(f"   ✅ Can access issue comments")
+                    else:
+                        print(f"   ❌ Cannot access issue comments: HTTP {comments_response.status_code}")
+                        print(f"   Response: {comments_response.text[:200]}")
+                else:
+                    print(f"   ⚠️  No issues found to test comments")
+            else:
+                print(f"   ❌ Cannot access issues: HTTP {issues_response.status_code}")
+        except Exception as e:
+            print(f"   ❌ Error testing issue comments access: {e}")
+        print()
     
     # Verify master project exists
     master_project_data = api.get_project_by_path(master_project)
@@ -325,12 +471,9 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
     
     print(f"   Found {len(forks)} forks")
     
-    # Debug: Print first fork structure to understand the API response (only if needed)
+    # Debug: Print first fork structure to understand the API response (reduced output)
     if forks and len(forks) > 0:
-        print(f"   Debug: First fork structure keys: {list(forks[0].keys())}")
-        if 'owner' in forks[0]:
-            print(f"   Debug: Owner structure: {forks[0]['owner']}")
-        else:
+        if 'owner' not in forks[0]:
             print(f"   Debug: No 'owner' field found in fork response")
     
     print()
@@ -373,62 +516,47 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
         
         print(f"[{idx}/{len(forks)}] Processing fork: {fork_path} (owner: {fork_owner})")
         
-        # Debug: Print fork structure to understand upstream relationship
-        print(f"   🔍 Debug: Fork structure keys: {list(fork.keys())}")
+        # Get master project ID for later use
+        master_project_id = master_project_data.get('id')
+        
+        # Debug: Print fork structure to understand upstream relationship (reduced output)
         if 'forked_from_project' in fork:
             print(f"   🔍 Debug: Forked from: {fork['forked_from_project']}")
-        if 'path' in fork:
-            print(f"   🔍 Debug: Fork path: {fork['path']}")
-        if 'namespace' in fork:
-            print(f"   🔍 Debug: Fork namespace: {fork['namespace']}")
         
-        # Check issues and comments for media attachments
+        # Check issues and comments for media attachments in the fork
         issues = api.get_project_issues(fork_id)
-        print(f"   📋 Found {len(issues)} issues")
+        print(f"   📋 Found {len(issues)} issues in fork")
         
         for issue in issues:
             # Check issue description for media
             desc_has_media, desc_media = has_media_attachments(issue.get('description', ''))
             
-            if desc_has_media:
-                all_submissions.append({
-                    'student': fork_owner,
-                    'repository': fork_path,
-                    'repo_name': repo_name,
-                    'owner_name': fork_owner,
-                    'source_repository': fork_path,
-                    'submission_type': 'COMMENT',  # Treat as comment for consistency
-                    'submission_date': issue['created_at'],
-                    'issue_number': issue['iid'],
-                    'issue_title': issue['title'],
-                    'issue_display': f"#{issue['iid']}",
-                    'comment_id': 'description',
-                    'is_valid': True,
-                    'validity_reasons': [],
-                    'repo_type': 'student_fork',
-                    'is_codepath_submission': False,
-                    'addressed_issues': []
-                })
+            # Only capture actual comments made by the student, not issue creation
             
             # Check issue comments
             print(f"   📝 Fetching comments for issue #{issue['iid']}...")
-            notes = api.get_issue_notes(fork_id, issue['iid'])
-            
-            if not notes:
-                print(f"   ⚠️  No comments found or accessible for issue #{issue['iid']}")
-            else:
-                print(f"   📝 Found {len(notes)} comments")
+            try:
+                notes = api.get_issue_notes(fork_id, issue['iid'])
+                
+                if not notes:
+                    print(f"   ⚠️  No comments found or accessible for issue #{issue['iid']}")
+                else:
+                    print(f"   📝 Found {len(notes)} comments")
+            except Exception as e:
+                print(f"   ⚠️  Could not fetch comments for issue #{issue['iid']}: {e}")
+                notes = []
             
             for note in notes:
                 if note.get('system'):  # Skip system notes
                     continue
                 
-                has_media, media_urls = has_media_attachments(note.get('body', ''))
-                
-                if has_media:
-                    all_submissions.append({
+                # Check if this comment was made by the student
+                note_author = note.get('author', {}).get('username', '')
+                if note_author.lower() == fork_owner.lower():
+                    # This is a comment made by the student
+                    submission = {
                         'student': fork_owner,
-                        'repository': fork_path,
+                        'repository': fork_path,  # Issues are in the fork
                         'repo_name': repo_name,
                         'owner_name': fork_owner,
                         'source_repository': fork_path,
@@ -438,24 +566,74 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
                         'issue_title': issue['title'],
                         'issue_display': f"#{issue['iid']}",
                         'comment_id': note['id'],
-                        'is_valid': True,
-                        'validity_reasons': [],
+                        'comment_text': note.get('body', ''),  # Add comment text for validation
                         'repo_type': 'student_fork',
-                        'is_codepath_submission': False,
+                        'is_codepath_submission': False,  # Issues are in the fork, not master repo
                         'addressed_issues': []
-                    })
+                    }
+                    
+                    # Apply validation
+                    submission = validate_submission(submission)
+                    all_submissions.append(submission)
+        
+        # Also check for issues in the master repository
+        if master_project_id:
+            print(f"   📋 Checking for issues in master repository...")
+            master_issues = api.get_project_issues(master_project_id)
+            print(f"   📋 Found {len(master_issues)} issues in master repository")
+            
+            for issue in master_issues:
+                # Only capture actual comments made by the student, not issue creation
+                
+                # Check for comments on ALL issues in master repository (not just issues created by student)
+                print(f"   📝 Fetching comments for master issue #{issue['iid']}...")
+                try:
+                    master_notes = api.get_issue_notes(master_project_id, issue['iid'])
+                    
+                    if not master_notes:
+                        print(f"   ⚠️  No comments found or accessible for master issue #{issue['iid']}")
+                    else:
+                        print(f"   📝 Found {len(master_notes)} comments in master issue")
+                except Exception as e:
+                    print(f"   ⚠️  Could not fetch comments for master issue #{issue['iid']}: {e}")
+                    master_notes = []
+                
+                for note in master_notes:
+                    if note.get('system'):  # Skip system notes
+                        continue
+                    
+                    # Check if this comment was made by the student
+                    note_author = note.get('author', {}).get('username', '')
+                    if note_author.lower() == fork_owner.lower():
+                        submission = {
+                            'student': fork_owner,
+                            'repository': master_project,  # Use master project path
+                            'repo_name': repo_name,
+                            'owner_name': fork_owner,
+                            'source_repository': fork_path,
+                            'submission_type': 'COMMENT',
+                            'submission_date': note['created_at'],
+                            'issue_number': issue['iid'],
+                            'issue_title': issue['title'],
+                            'issue_display': f"#{issue['iid']}",
+                            'comment_id': note['id'],
+                            'comment_text': note.get('body', ''),  # Add comment text for validation
+                            'repo_type': 'codepath_repo',
+                            'is_codepath_submission': True,  # This is a submission to the master repo
+                            'addressed_issues': []
+                        }
+                        
+                        # Apply validation
+                        submission = validate_submission(submission)
+                        all_submissions.append(submission)
         
         # Get all merge requests from the fork
         merge_requests = api.get_merge_requests(fork_id)
-        master_project_id = master_project_data.get('id')
         
-        # Debug: Print merge request details to understand the structure
+        # Debug: Print merge request details to understand the structure (reduced output)
         print(f"   🔍 Debug: Analyzing {len(merge_requests)} merge requests...")
         for mr in merge_requests:
-            print(f"      - MR !{mr['iid']}: {mr['title']}")
-            print(f"        Source: {mr.get('source_project_id')} -> Target: {mr.get('target_project_id')}")
-            print(f"        Source branch: {mr.get('source_branch')} -> Target branch: {mr.get('target_branch')}")
-            print(f"        State: {mr.get('state')}")
+            print(f"      - MR !{mr['iid']}: {mr['title']} (State: {mr.get('state')})")
         
         # Separate merge requests by target
         self_mrs = []
@@ -477,7 +655,7 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
         
         # Process self-merge requests
         for mr in self_mrs:
-            all_submissions.append({
+            submission = {
                 'student': fork_owner,
                 'repository': fork_path,
                 'repo_name': repo_name,
@@ -487,17 +665,20 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
                 'submission_date': mr['created_at'],
                 'pr_number': mr['iid'],
                 'pr_title': mr['title'],
-                'is_valid': True,
-                'validity_reasons': [],
+                'pr_description': mr.get('description', ''),  # Add PR description for validation
                 'repo_type': 'student_fork',
                 'is_codepath_submission': False,
                 'addressed_issues': []
-            })
+            }
+            
+            # Apply validation
+            submission = validate_submission(submission)
+            all_submissions.append(submission)
         
         # Process merge requests to master project
         for mr in master_mrs:
             print(f"      - MR !{mr['iid']}: {mr['title']} (state: {mr.get('state', 'unknown')})")
-            all_submissions.append({
+            submission = {
                 'student': fork_owner,
                 'repository': master_project,  # Use master project path instead of fork path
                 'repo_name': repo_name,
@@ -507,12 +688,15 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
                 'submission_date': mr['created_at'],
                 'pr_number': mr['iid'],
                 'pr_title': mr['title'],
-                'is_valid': True,
-                'validity_reasons': [],
+                'pr_description': mr.get('description', ''),  # Add PR description for validation
                 'repo_type': 'codepath_repo',  # This is a submission to the master repo
                 'is_codepath_submission': True,  # This is a submission to the master repo
                 'addressed_issues': []
-            })
+            }
+            
+            # Apply validation
+            submission = validate_submission(submission)
+            all_submissions.append(submission)
         
         # Also check for merge requests in the master repository that come from this fork
         if master_project_id:
@@ -522,7 +706,7 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
             
             for mr in master_repo_mrs:
                 print(f"      - MR !{mr['iid']}: {mr['title']} (state: {mr.get('state', 'unknown')})")
-                all_submissions.append({
+                submission = {
                     'student': fork_owner,
                     'repository': master_project,  # Use master project path instead of fork path
                     'repo_name': repo_name,
@@ -532,12 +716,15 @@ def fetch_submissions(gitlab_url: str, master_project: str, student: str = None,
                     'submission_date': mr['created_at'],
                     'pr_number': mr['iid'],
                     'pr_title': mr['title'],
-                    'is_valid': True,
-                    'validity_reasons': [],
+                    'pr_description': mr.get('description', ''),  # Add PR description for validation
                     'repo_type': 'codepath_repo',  # This is a submission to the master repo
                     'is_codepath_submission': True,  # This is a submission to the master repo
                     'addressed_issues': []
-                })
+                }
+                
+                # Apply validation
+                submission = validate_submission(submission)
+                all_submissions.append(submission)
         
         print()
     
@@ -655,12 +842,43 @@ def format_submissions(data: Dict[str, Any]):
     # Calculate per-student date ranges
     student_date_ranges = get_student_date_ranges(submissions)
     
+    # Calculate submission type breakdown
+    submission_types = defaultdict(int)
+    submission_locations = defaultdict(int)
+    for submission in submissions:
+        submission_type = submission.get('submission_type', 'unknown')
+        submission_types[submission_type] += 1
+        
+        # Calculate location breakdown
+        location = get_submission_location(submission)
+        submission_locations[location] += 1
+    
     print("=" * 80)
     print("📊 GITLAB STUDENT SUBMISSIONS SUMMARY")
     print("=" * 80)
     print(f"Total Projects: {total_projects}")
     print(f"Total Students: {total_students}")
     print(f"Total Submissions: {total_submissions}")
+    print()
+    
+    # Show submission type breakdown
+    print("📋 SUBMISSION TYPE BREAKDOWN")
+    print("-" * 80)
+    for submission_type in sorted(submission_types.keys()):
+        count = submission_types[submission_type]
+        percentage = (count / total_submissions) * 100 if total_submissions > 0 else 0
+        type_display = "Comments" if submission_type == "COMMENT" else "Merge Requests" if submission_type == "PULL_REQUEST" else submission_type
+        print(f"💬 {type_display}: {count} ({percentage:.1f}%)")
+    print()
+    
+    # Show submission location breakdown
+    print("📍 SUBMISSION LOCATION BREAKDOWN")
+    print("-" * 80)
+    for location in sorted(submission_locations.keys()):
+        count = submission_locations[location]
+        percentage = (count / total_submissions) * 100 if total_submissions > 0 else 0
+        location_display = "Master Repository" if location == "master repo" else "Student Fork" if location == "own fork" else location.title()
+        print(f"🏠 {location_display}: {count} ({percentage:.1f}%)")
     print()
     
     # Show per-student date ranges
@@ -701,8 +919,37 @@ def format_submissions(data: Dict[str, Any]):
                 url = get_submission_url(submission)
                 status = "✅ VALID" if submission.get('is_valid') else "❌ INVALID"
                 date = submission.get('submission_date', 'N/A')
+                submission_type = submission.get('submission_type', 'UNKNOWN')
                 
-                print(f"{idx}. {title}")
+                # Create a more descriptive type label
+                if submission_type == 'PULL_REQUEST':
+                    if location == 'own fork':
+                        type_label = "PULL_REQUEST - OWN BRANCH"
+                    else:
+                        type_label = "PULL_REQUEST"
+                elif submission_type == 'COMMENT':
+                    type_label = "COMMENT"
+                else:
+                    type_label = submission_type
+                
+                # Extract the main identifier (MR !3, #1, etc.) and title separately
+                if submission_type == 'PULL_REQUEST':
+                    pr_num = submission.get('pr_number')
+                    pr_title = submission.get('pr_title', 'Unknown')
+                    header = f"MR !{pr_num} ({type_label})"
+                    title_line = f"Title: {pr_title}"
+                elif submission_type == 'COMMENT':
+                    issue_display = submission.get('issue_display', f"#{submission.get('issue_number')}")
+                    issue_title = submission.get('issue_title', 'Unknown')
+                    header = f"{issue_display} ({type_label})"
+                    title_line = f"Title: {issue_title}"
+                else:
+                    header = f"{title} ({type_label})"
+                    title_line = ""
+                
+                print(f"{idx}. {header}")
+                if title_line:
+                    print(f"   {title_line}")
                 print(f"   Repository: {submission.get('repository', 'N/A')}")
                 print(f"   Location: {location}")
                 print(f"   Status: {status}")
@@ -846,6 +1093,20 @@ Examples:
     
     # Get token from command line or environment variable
     token = args.token or os.getenv('GITLAB_TOKEN')
+    
+    # Debug: Show token status
+    print(f"🔍 Debug: Token from command line: {'Yes' if args.token else 'No'}")
+    print(f"🔍 Debug: Token from environment: {'Yes' if os.getenv('GITLAB_TOKEN') else 'No'}")
+    print(f"🔍 Debug: Final token: {'Present' if token else 'Missing'}")
+    if token:
+        print(f"🔍 Debug: Token starts with: {token[:10]}...")
+    
+    # Check if .env file exists
+    env_file_exists = os.path.exists('.env')
+    print(f"🔍 Debug: .env file exists: {'Yes' if env_file_exists else 'No'}")
+    if env_file_exists:
+        print(f"🔍 Debug: .env file contents: {open('.env').read()[:100]}...")
+    print()
     
     if not token:
         print("⚠️  No GitLab token provided. You may hit rate limits and have limited access.")

@@ -12,7 +12,11 @@ from typing import Dict, List, Any
 from datetime import datetime
 
 
-def fetch_submissions(base_url: str, student: str = None, master_repo_owner: str = "codepath", start_date: str = None, end_date: str = None) -> Dict[str, Any]:
+def fetch_submissions(base_url: str, student: str = None, master_repo_owner: str = "codepath", 
+                      start_date: str = None, end_date: str = None, ignore_invalids: bool = False,
+                      providers: List[str] = None, include_master_submissions: bool = False,
+                      report_owner_submissions: bool = False, include_closed: bool = False,
+                      github_token: str = None, gitlab_token: str = None) -> Dict[str, Any]:
     """
     Fetch submissions from the API endpoint
     
@@ -20,8 +24,15 @@ def fetch_submissions(base_url: str, student: str = None, master_repo_owner: str
         base_url: Base URL of the API (e.g., http://localhost:3000)
         student: Optional student username (if None, fetches all students)
         master_repo_owner: Master repo owner (default: codepath)
-        start_date: Optional start date filter (YYYY-MM-DD format)
-        end_date: Optional end date filter (YYYY-MM-DD format)
+        start_date: Optional start date filter (YYYY-MM-DD or ISO format)
+        end_date: Optional end date filter (YYYY-MM-DD or ISO format)
+        ignore_invalids: Ignore/exclude invalid submissions (default: False, includes invalid)
+        providers: List of provider types to filter by (e.g., ['github', 'gitlab'])
+        include_master_submissions: Fetch submissions from owner/master repositories via API (default: False)
+        report_owner_submissions: Include list of users who made submissions to owner/master repos (default: False)
+        include_closed: Include closed issues and pull requests (default: False)
+        github_token: GitHub API token (overrides env var)
+        gitlab_token: GitLab API token (overrides env var)
     
     Returns:
         API response as dictionary
@@ -33,11 +44,38 @@ def fetch_submissions(base_url: str, student: str = None, master_repo_owner: str
     
     params = {'master_repo_owner': master_repo_owner}
     
-    # Add date filters to params if provided
+    # Add ignore_invalids parameter (now matches parameter name)
+    params['ignore_invalids'] = 'true' if ignore_invalids else 'false'
+    
+    # Add include_master_submissions parameter
+    params['include_master_submissions'] = 'true' if include_master_submissions else 'false'
+    
+    # Add report_owner_submissions parameter
+    params['report_owner_submissions'] = 'true' if report_owner_submissions else 'false'
+    
+    # Add include_closed parameter
+    params['include_closed'] = 'true' if include_closed else 'false'
+    
+    # Add API tokens if provided
+    if github_token:
+        params['github_token'] = github_token
+    if gitlab_token:
+        params['gitlab_token'] = gitlab_token
+    
+    # Add date filters to params if provided (backend will handle filtering)
     if start_date:
         params['start_date'] = start_date
     if end_date:
         params['end_date'] = end_date
+    
+    # Add provider filters if specified
+    if providers:
+        # Backend accepts comma-separated or multiple provider params
+        params['providers'] = ','.join(providers)
+    
+    # Add student filter if specified
+    if student:
+        params['student'] = student
     
     print(f"🔍 Fetching submissions from: {url}")
     print(f"   Master repo owner: {master_repo_owner}")
@@ -47,6 +85,20 @@ def fetch_submissions(base_url: str, student: str = None, master_repo_owner: str
         print(f"   Start date: {start_date}")
     if end_date:
         print(f"   End date: {end_date}")
+    if providers:
+        print(f"   Providers: {', '.join(providers)}")
+    if include_master_submissions:
+        print(f"   Include master submissions: enabled")
+    if report_owner_submissions:
+        print(f"   Report owner submissions: enabled")
+    if include_closed:
+        print(f"   Include closed: enabled")
+    if ignore_invalids:
+        print(f"   Ignore invalids: enabled")
+    if github_token:
+        print(f"   GitHub token: provided")
+    if gitlab_token:
+        print(f"   GitLab token: provided")
     print()
     
     try:
@@ -100,6 +152,38 @@ def get_submission_title(submission: Dict[str, Any]) -> str:
         return f"PR #{pr_num} - {pr_title}"
     
     return "Unknown"
+
+
+def format_submission_date(date_str: str) -> str:
+    """
+    Format submission date to a consistent, readable format
+    Converts ISO format (2025-11-27T23:33:11+00:00) or RFC 2822 format to a standard format
+    
+    Args:
+        date_str: Date string in various formats
+        
+    Returns:
+        Formatted date string (e.g., "Mon, 24 Nov 2025 12:24:46 GMT")
+    """
+    if not date_str or date_str == 'N/A':
+        return 'N/A'
+    
+    try:
+        # Try parsing as ISO format first
+        if 'T' in date_str:
+            # ISO format: 2025-11-27T23:33:11+00:00
+            date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        else:
+            # Try RFC 2822 format: Mon, 24 Nov 2025 12:24:46 GMT
+            from email.utils import parsedate_to_datetime
+            date_obj = parsedate_to_datetime(date_str)
+        
+        # Format to RFC 2822 format (like email dates)
+        from email.utils import format_datetime
+        return format_datetime(date_obj)
+    except Exception:
+        # If parsing fails, return original
+        return date_str
 
 
 def filter_submissions_by_date(submissions: List[Dict[str, Any]], start_date: str = None, end_date: str = None) -> List[Dict[str, Any]]:
@@ -201,11 +285,165 @@ def get_student_date_ranges(submissions: List[Dict[str, Any]]) -> Dict[str, Dict
     return student_dates
 
 
-def format_submissions(data: Dict[str, Any], start_date: str = None, end_date: str = None):
+def save_owner_submission_users(data: Dict[str, Any], filename: str = "master_submissions.txt"):
+    """
+    Save list of users who made submissions to owner/master repositories to a text file
+    Format: username,provider (e.g., chandanshyam,github)
+    
+    Args:
+        data: API response data
+        filename: Output filename (default: master_submissions.txt)
+    """
+    # Extract owner submission users from the response
+    owner_submission_users = None
+    
+    if 'report' in data and 'owner_submission_users' in data['report']:
+        owner_submission_users = data['report']['owner_submission_users']
+    elif 'owner_submission_users' in data:
+        owner_submission_users = data['owner_submission_users']
+    
+    if not owner_submission_users:
+        print("ℹ️  No owner submission users data found in response")
+        return
+    
+    try:
+        with open(filename, 'w') as f:
+            # Check if the data includes provider information
+            if owner_submission_users and isinstance(owner_submission_users[0], dict):
+                # Format: [{"username": "user1", "provider": "github"}, ...]
+                for entry in sorted(owner_submission_users, key=lambda x: (x.get('username', ''), x.get('provider', ''))):
+                    username = entry.get('username', 'unknown')
+                    provider = entry.get('provider', 'unknown')
+                    f.write(f"{username},{provider}\n")
+            else:
+                # Legacy format: ["user1", "user2", ...] - assume github
+                for user in sorted(owner_submission_users):
+                    f.write(f"{user},github\n")
+        
+        print(f"✅ Saved {len(owner_submission_users)} owner submission users to: {filename}")
+        return True
+    except Exception as e:
+        print(f"❌ Error saving owner submission users to file: {e}")
+        return False
+
+
+def read_master_submissions_file(filename: str = "master_submissions.txt") -> List[tuple]:
+    """
+    Read master_submissions.txt and return list of (username, provider) tuples
+    
+    Args:
+        filename: Input filename (default: master_submissions.txt)
+    
+    Returns:
+        List of (username, provider) tuples
+    """
+    users = []
+    try:
+        with open(filename, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                
+                parts = line.split(',')
+                if len(parts) >= 2:
+                    username = parts[0].strip()
+                    provider = parts[1].strip()
+                    users.append((username, provider))
+                elif len(parts) == 1:
+                    # Legacy format without provider
+                    username = parts[0].strip()
+                    users.append((username, 'github'))
+        
+        return users
+    except FileNotFoundError:
+        print(f"❌ File not found: {filename}")
+        return []
+    except Exception as e:
+        print(f"❌ Error reading file: {e}")
+        return []
+
+
+def process_master_submissions_batch(base_url: str, master_repo_owner: str, filename: str = "master_submissions.txt",
+                                     start_date: str = None, end_date: str = None, ignore_invalids: bool = False,
+                                     include_master_submissions: bool = False, include_closed: bool = False,
+                                     github_token: str = None, gitlab_token: str = None):
+    """
+    Process each user in master_submissions.txt file
+    
+    Args:
+        base_url: Base URL of the API
+        master_repo_owner: Master repo owner
+        filename: Input filename with user list
+        start_date: Optional start date filter
+        end_date: Optional end date filter
+        ignore_invalids: Ignore/exclude invalid submissions
+        include_master_submissions: Fetch submissions from master repos
+        include_closed: Include closed issues and pull requests
+        github_token: GitHub API token
+        gitlab_token: GitLab API token
+    """
+    users = read_master_submissions_file(filename)
+    
+    if not users:
+        print(f"⚠️  No users found in {filename}")
+        return
+    
+    print(f"\n{'='*80}")
+    print(f"📋 Processing {len(users)} users from {filename}")
+    print(f"{'='*80}\n")
+    
+    for idx, (username, provider) in enumerate(users, 1):
+        print(f"\n{'='*80}")
+        print(f"[{idx}/{len(users)}] Processing: {username} ({provider})")
+        print(f"{'='*80}\n")
+        
+        try:
+            # Fetch submissions for this specific user and provider
+            data = fetch_submissions(
+                base_url=base_url,
+                student=username,
+                master_repo_owner=master_repo_owner,
+                start_date=start_date,
+                end_date=end_date,
+                ignore_invalids=ignore_invalids,
+                providers=[provider],
+                include_master_submissions=include_master_submissions,
+                report_owner_submissions=False,  # Don't generate new master_submissions.txt for each user
+                include_closed=include_closed,
+                github_token=github_token,
+                gitlab_token=gitlab_token
+            )
+            
+            # Check for API errors
+            if not data.get('success', True):
+                print(f"❌ API returned error for {username}: {data.get('error', 'Unknown error')}")
+                continue
+            
+            # Format and display
+            format_submissions(data)
+            
+        except Exception as e:
+            print(f"❌ Error processing {username}: {e}")
+            continue
+    
+    print(f"\n{'='*80}")
+    print(f"✅ Completed processing {len(users)} users")
+    print(f"{'='*80}\n")
+
+
+def format_submissions(data: Dict[str, Any]):
     """Format and print submissions grouped by project and student"""
     
     # Debug: Print the keys in the response
     print(f"🔍 DEBUG: Response keys: {list(data.keys())}")
+    
+    # Check if owner submission users data is available and save to file FIRST
+    # (before checking for submissions, in case there are no submissions but we have owner users)
+    if 'report' in data and 'owner_submission_users' in data['report']:
+        save_owner_submission_users(data)
+    elif 'owner_submission_users' in data:
+        save_owner_submission_users(data)
     
     # Handle different response formats
     submissions = None
@@ -223,23 +461,18 @@ def format_submissions(data: Dict[str, Any], start_date: str = None, end_date: s
         submissions = data['submissions']
         print(f"📋 Found {len(submissions)} submissions in submissions")
     else:
-        print(f"❌ No submissions found in response. Available keys: {list(data.keys())}")
-        print(f"📄 Full response structure:")
-        import json
-        print(json.dumps(data, indent=2)[:500])  # Print first 500 chars
+        print(f"ℹ️  No submissions found in response. Available keys: {list(data.keys())}")
+        # Don't print the full response structure if we successfully saved owner submission users
+        has_owner_users = ('report' in data and 'owner_submission_users' in data['report']) or 'owner_submission_users' in data
+        if not has_owner_users:
+            print(f"📄 Full response structure:")
+            import json
+            print(json.dumps(data, indent=2)[:500])  # Print first 500 chars
         return
     
     if not submissions:
         print("ℹ️  No submissions found (submissions list is empty)")
         return
-    
-    # Apply date filtering if specified
-    if start_date or end_date:
-        original_count = len(submissions)
-        submissions = filter_submissions_by_date(submissions, start_date, end_date)
-        filtered_count = len(submissions)
-        if original_count != filtered_count:
-            print(f"📅 Date filtering: {original_count} → {filtered_count} submissions")
     
     print()  # Add blank line after debug info
     
@@ -314,7 +547,7 @@ def format_submissions(data: Dict[str, Any], start_date: str = None, end_date: s
                 location = get_submission_location(submission)
                 url = get_submission_url(submission)
                 status = "✅ VALID" if submission.get('is_valid') else "❌ INVALID"
-                date = submission.get('submission_date', 'N/A')
+                date = format_submission_date(submission.get('submission_date', 'N/A'))
                 
                 print(f"{idx}. {title}")
                 print(f"   Repository: {submission.get('repository', 'N/A')}")
@@ -351,6 +584,11 @@ def show_usage_guide():
     print()
     print("📊 Features:")
     print("  • Date filtering with --start-date and --end-date")
+    print("  • Provider filtering (GitHub/GitLab) with --providers")
+    print("  • Include/exclude invalid submissions")
+    print("  • Fetch submissions from master repos (codepath/puter) with --include-master-submissions")
+    print("  • Save owner submission users to master_submissions.txt with --report-owner-submissions")
+    print("  • Batch process each user with interactive prompt or --batch-process flag")
     print("  • Per-student date range summaries")
     print("  • Individual submission details with dates")
     print()
@@ -360,39 +598,54 @@ def show_usage_guide():
     print("-" * 80)
     print()
     print("1. Fetch a specific student from production:")
-    print("   python format_submissions.py \\")
+    print("   python main.py \\")
     print("       --base-url https://www.zenocross.com \\")
     print("       --student jellyfishing2346 \\")
     print("       --master-repo-owner codepath")
     print()
-    print("2. Fetch all students from localhost:")
-    print("   python format_submissions.py \\")
-    print("       --base-url http://localhost:3000 \\")
-    print("       --master-repo-owner codepath")
-    print()
-    print("3. Fetch from a different master repo owner:")
-    print("   python format_submissions.py \\")
+    print("2. Fetch all students with master repo submissions (GitHub PRs to codepath/puter):")
+    print("   python main.py \\")
     print("       --base-url https://www.zenocross.com \\")
-    print("       --master-repo-owner zenocross")
+    print("       --master-repo-owner codepath \\")
+    print("       --include-master-submissions")
     print()
-    print("4. Fetch submissions within a date range:")
-    print("   python format_submissions.py \\")
+    print("3. Fetch submissions within a date range:")
+    print("   python main.py \\")
     print("       --base-url https://www.zenocross.com \\")
     print("       --start-date 2023-12-01 \\")
     print("       --end-date 2023-12-31 \\")
     print("       --master-repo-owner codepath")
     print()
-    print("5. Fetch submissions for a specific student within date range:")
-    print("   python format_submissions.py \\")
+    print("4. Filter by provider (GitHub only):")
+    print("   python main.py \\")
     print("       --base-url https://www.zenocross.com \\")
-    print("       --student jellyfishing2346 \\")
-    print("       --start-date 2023-12-01 \\")
-    print("       --end-date 2023-12-31 \\")
+    print("       --providers github \\")
     print("       --master-repo-owner codepath")
+    print()
+    print("5. Exclude invalid submissions:")
+    print("   python main.py \\")
+    print("       --base-url https://www.zenocross.com \\")
+    print("       --exclude-invalid \\")
+    print("       --master-repo-owner codepath")
+    print()
+    print("6. Generate list of users who submitted to master repos and process them:")
+    print("   python main.py \\")
+    print("       --base-url https://www.zenocross.com \\")
+    print("       --master-repo-owner codepath \\")
+    print("       --include-master-submissions \\")
+    print("       --report-owner-submissions")
+    print("   (Creates master_submissions.txt, then prompts to process each user)")
+    print()
+    print("7. Batch process without prompting:")
+    print("   python main.py \\")
+    print("       --base-url https://www.zenocross.com \\")
+    print("       --master-repo-owner codepath \\")
+    print("       --report-owner-submissions \\")
+    print("       --batch-process")
     print()
     print("=" * 80)
     print()
-    print("For more help, use: python format_submissions.py --help")
+    print("For more help, use: python main.py --help")
     print()
 
 
@@ -403,19 +656,19 @@ def main():
         epilog="""
 Examples:
   # Fetch specific student from production
-  python format_submissions.py --base-url https://www.zenocross.com --student jellyfishing2346 --master-repo-owner codepath
+  python main.py --base-url https://www.zenocross.com --student jellyfishing2346 --master-repo-owner codepath
   
-  # Fetch all students from localhost
-  python format_submissions.py --base-url http://localhost:3000 --master-repo-owner codepath
+  # Fetch all students with master repo submissions (GitHub PRs to codepath/puter)
+  python main.py --base-url https://www.zenocross.com --master-repo-owner codepath --include-master-submissions
   
   # Fetch from different master repo owner
-  python format_submissions.py --base-url https://www.zenocross.com --master-repo-owner zenocross
+  python main.py --base-url https://www.zenocross.com --master-repo-owner zenocross
   
   # Fetch submissions within date range
-  python format_submissions.py --base-url https://www.zenocross.com --start-date 2023-12-01 --end-date 2023-12-31 --master-repo-owner codepath
+  python main.py --base-url https://www.zenocross.com --start-date 2023-12-01 --end-date 2023-12-31 --master-repo-owner codepath
   
-  # Fetch specific student within date range
-  python format_submissions.py --base-url https://www.zenocross.com --student jellyfishing2346 --start-date 2023-12-01 --end-date 2023-12-31 --master-repo-owner codepath
+  # Filter by GitHub only and exclude invalid
+  python main.py --base-url https://www.zenocross.com --providers github --exclude-invalid --master-repo-owner codepath
         """,
         add_help=True
     )
@@ -438,12 +691,61 @@ Examples:
     
     parser.add_argument(
         '--start-date',
-        help='Start date filter in YYYY-MM-DD format (optional)'
+        help='Start date filter in YYYY-MM-DD or ISO format (optional)'
     )
     
     parser.add_argument(
         '--end-date',
-        help='End date filter in YYYY-MM-DD format (optional)'
+        help='End date filter in YYYY-MM-DD or ISO format (optional)'
+    )
+    
+    parser.add_argument(
+        '--ignore-invalids',
+        action='store_true',
+        dest='ignore_invalids',
+        help='Ignore/exclude invalid submissions (default: false, includes invalid)'
+    )
+    
+    parser.add_argument(
+        '--providers',
+        nargs='+',
+        choices=['github', 'gitlab'],
+        help='Filter by provider type(s) (e.g., --providers github gitlab)'
+    )
+    
+    parser.add_argument(
+        '--include-master-submissions',
+        action='store_true',
+        dest='include_master_submissions',
+        help='Fetch submissions from master/owner repositories via API (GitHub PRs to codepath/puter, etc.)'
+    )
+    
+    parser.add_argument(
+        '--report-owner-submissions',
+        action='store_true',
+        help='Include a list of all users who made submissions to owner/master repositories at the bottom of the report'
+    )
+    
+    parser.add_argument(
+        '--batch-process',
+        action='store_true',
+        help='Automatically process each user from master_submissions.txt without prompting'
+    )
+    
+    parser.add_argument(
+        '--include-closed',
+        action='store_true',
+        help='Include closed issues and pull requests (default: false, only open issues/PRs)'
+    )
+    
+    parser.add_argument(
+        '--github-token',
+        help='GitHub API token (overrides GITHUB_TOKEN environment variable)'
+    )
+    
+    parser.add_argument(
+        '--gitlab-token',
+        help='GitLab API token (overrides GITLAB_TOKEN environment variable)'
     )
     
     # Parse arguments
@@ -460,7 +762,14 @@ Examples:
         student=args.student,
         master_repo_owner=args.master_repo_owner,
         start_date=args.start_date,
-        end_date=args.end_date
+        end_date=args.end_date,
+        ignore_invalids=args.ignore_invalids,
+        providers=args.providers,
+        include_master_submissions=args.include_master_submissions,
+        report_owner_submissions=args.report_owner_submissions,
+        include_closed=args.include_closed,
+        github_token=args.github_token,
+        gitlab_token=args.gitlab_token
     )
     
     # Check for API errors
@@ -468,8 +777,45 @@ Examples:
         print(f"❌ API returned error: {data.get('error', 'Unknown error')}")
         sys.exit(1)
     
-    # Format and display
-    format_submissions(data, args.start_date, args.end_date)
+    # Format and display (date filtering now done by backend)
+    format_submissions(data)
+    
+    # Check if master_submissions.txt was created and prompt for batch processing
+    import os
+    if args.report_owner_submissions and os.path.exists('master_submissions.txt'):
+        # Check if file has content
+        users = read_master_submissions_file('master_submissions.txt')
+        
+        if users:
+            should_process = args.batch_process
+            
+            if not args.batch_process:
+                # Prompt user
+                print(f"\n{'='*80}")
+                print(f"📋 Found {len(users)} users in master_submissions.txt")
+                print(f"{'='*80}")
+                response = input("\nDo you want to process each user individually? (yes/no): ").strip().lower()
+                should_process = response in ['yes', 'y']
+            
+            if should_process:
+                # When processing users from master_submissions.txt, always include master submissions
+                # since these users were identified as having submitted to master repos
+                process_master_submissions_batch(
+                    base_url=args.base_url,
+                    master_repo_owner=args.master_repo_owner,
+                    filename='master_submissions.txt',
+                    start_date=args.start_date,
+                    end_date=args.end_date,
+                    ignore_invalids=args.ignore_invalids,
+                    include_master_submissions=True,  # Always True for batch processing
+                    include_closed=args.include_closed,
+                    github_token=args.github_token,
+                    gitlab_token=args.gitlab_token
+                )
+            else:
+                print("\n✅ Skipping batch processing. You can process users later by running with --batch-process flag.")
+        else:
+            print("\n⚠️  master_submissions.txt is empty, nothing to process.")
 
 
 if __name__ == '__main__':

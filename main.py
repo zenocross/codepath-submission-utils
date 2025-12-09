@@ -16,7 +16,8 @@ def fetch_submissions(base_url: str, student: str = None, master_repo_owner: str
                       start_date: str = None, end_date: str = None, ignore_invalids: bool = False,
                       providers: List[str] = None, include_master_submissions: bool = False,
                       report_owner_submissions: bool = False, include_closed: bool = False,
-                      github_token: str = None, gitlab_token: str = None) -> Dict[str, Any]:
+                      github_token: str = None, gitlab_token: str = None,
+                      repository: str = None) -> Dict[str, Any]:
     """
     Fetch submissions from the API endpoint
     
@@ -33,6 +34,7 @@ def fetch_submissions(base_url: str, student: str = None, master_repo_owner: str
         include_closed: Include closed issues and pull requests (default: False)
         github_token: GitHub API token (overrides env var)
         gitlab_token: GitLab API token (overrides env var)
+        repository: Filter by specific repository (full path like 'codepath/ios101-prework')
     
     Returns:
         API response as dictionary
@@ -61,6 +63,10 @@ def fetch_submissions(base_url: str, student: str = None, master_repo_owner: str
         params['github_token'] = github_token
     if gitlab_token:
         params['gitlab_token'] = gitlab_token
+    
+    # Add repository filter if provided
+    if repository:
+        params['repository'] = repository
     
     # Add date filters to params if provided (backend will handle filtering)
     if start_date:
@@ -99,6 +105,8 @@ def fetch_submissions(base_url: str, student: str = None, master_repo_owner: str
         print(f"   GitHub token: provided")
     if gitlab_token:
         print(f"   GitLab token: provided")
+    if repository:
+        print(f"   Repository: {repository}")
     print()
     
     try:
@@ -367,7 +375,8 @@ def read_master_submissions_file(filename: str = "master_submissions.txt") -> Li
 def process_master_submissions_batch(base_url: str, master_repo_owner: str, filename: str = "master_submissions.txt",
                                      start_date: str = None, end_date: str = None, ignore_invalids: bool = False,
                                      include_master_submissions: bool = False, include_closed: bool = False,
-                                     github_token: str = None, gitlab_token: str = None):
+                                     github_token: str = None, gitlab_token: str = None,
+                                     repository: str = None):
     """
     Process each user in master_submissions.txt file
     
@@ -382,6 +391,7 @@ def process_master_submissions_batch(base_url: str, master_repo_owner: str, file
         include_closed: Include closed issues and pull requests
         github_token: GitHub API token
         gitlab_token: GitLab API token
+        repository: Filter by specific repository (full path like 'codepath/ios101-prework')
     """
     users = read_master_submissions_file(filename)
     
@@ -412,7 +422,8 @@ def process_master_submissions_batch(base_url: str, master_repo_owner: str, file
                 report_owner_submissions=False,  # Don't generate new master_submissions.txt for each user
                 include_closed=include_closed,
                 github_token=github_token,
-                gitlab_token=gitlab_token
+                gitlab_token=gitlab_token,
+                repository=repository
             )
             
             # Check for API errors
@@ -585,6 +596,7 @@ def show_usage_guide():
     print("📊 Features:")
     print("  • Date filtering with --start-date and --end-date")
     print("  • Provider filtering (GitHub/GitLab) with --providers")
+    print("  • Repository/project filtering with --repository (e.g., codepath/ios101-prework)")
     print("  • Include/exclude invalid submissions")
     print("  • Fetch submissions from master repos (codepath/puter) with --include-master-submissions")
     print("  • Save owner submission users to master_submissions.txt with --report-owner-submissions")
@@ -628,7 +640,13 @@ def show_usage_guide():
     print("       --exclude-invalid \\")
     print("       --master-repo-owner codepath")
     print()
-    print("6. Generate list of users who submitted to master repos and process them:")
+    print("6. Filter by specific repository/project:")
+    print("   python main.py \\")
+    print("       --base-url https://www.zenocross.com \\")
+    print("       --repository codepath/ios101-prework \\")
+    print("       --master-repo-owner codepath")
+    print()
+    print("7. Generate list of users who submitted to master repos and process them:")
     print("   python main.py \\")
     print("       --base-url https://www.zenocross.com \\")
     print("       --master-repo-owner codepath \\")
@@ -636,7 +654,7 @@ def show_usage_guide():
     print("       --report-owner-submissions")
     print("   (Creates master_submissions.txt, then prompts to process each user)")
     print()
-    print("7. Batch process without prompting:")
+    print("8. Batch process without prompting:")
     print("   python main.py \\")
     print("       --base-url https://www.zenocross.com \\")
     print("       --master-repo-owner codepath \\")
@@ -669,6 +687,9 @@ Examples:
   
   # Filter by GitHub only and exclude invalid
   python main.py --base-url https://www.zenocross.com --providers github --exclude-invalid --master-repo-owner codepath
+  
+  # Filter by specific repository/project
+  python main.py --base-url https://www.zenocross.com --repository codepath/ios101-prework --master-repo-owner codepath
         """,
         add_help=True
     )
@@ -748,6 +769,11 @@ Examples:
         help='GitLab API token (overrides GITLAB_TOKEN environment variable)'
     )
     
+    parser.add_argument(
+        '--repository',
+        help='Filter by specific repository (full path like "codepath/ios101-prework")'
+    )
+    
     # Parse arguments
     args = parser.parse_args()
     
@@ -769,7 +795,8 @@ Examples:
         report_owner_submissions=args.report_owner_submissions,
         include_closed=args.include_closed,
         github_token=args.github_token,
-        gitlab_token=args.gitlab_token
+        gitlab_token=args.gitlab_token,
+        repository=args.repository
     )
     
     # Check for API errors
@@ -810,7 +837,8 @@ Examples:
                     include_master_submissions=True,  # Always True for batch processing
                     include_closed=args.include_closed,
                     github_token=args.github_token,
-                    gitlab_token=args.gitlab_token
+                    gitlab_token=args.gitlab_token,
+                    repository=args.repository
                 )
             else:
                 print("\n✅ Skipping batch processing. You can process users later by running with --batch-process flag.")
